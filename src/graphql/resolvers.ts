@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { connectDB } from '@/lib/mongodb';
 import { getSession, SessionData } from '@/lib/session';
 import { User, Customer, AttendanceLog, QRPool } from '@/models';
-import { generateQRCodeData, generateCustomerCode } from '@/utils/qrcode';
+import { generateCustomerCode } from '@/utils/qrcode';
 
 // Context type for resolvers
 export interface GqlContext {
@@ -323,7 +323,6 @@ export const resolvers = {
 
       const [items, total] = await Promise.all([
         QRPool.find(query)
-          .select('-qrImage')
           .populate('customerId', 'fullName customerCode')
           .sort({ generatedAt: -1 })
           .skip(skip)
@@ -343,13 +342,6 @@ export const resolvers = {
       }));
 
       return { items: mapped, total, page, pageSize };
-    },
-
-    qrPoolImages: async (_: any, args: { ids: string[] }, ctx: GqlContext) => {
-      await connectDB();
-      requireAuth(ctx);
-      if (args.ids.length > 200) throw new GraphQLError('Max 200 images at once');
-      return QRPool.find({ _id: { $in: args.ids } }).select('_id code qrImage').lean();
     },
 
     qrLookup: async (_: any, args: { code: string }, ctx: GqlContext) => {
@@ -448,10 +440,13 @@ export const resolvers = {
       requireAdmin(ctx);
       const customerCode = await generateCustomerCode();
       const fullName = `${args.input.firstName} ${args.input.lastName}`;
-      const customer = await Customer.create({ ...args.input, customerCode, fullName, status: args.input.status || 'active' });
-      const qrCode = await generateQRCodeData(customerCode);
-      customer.qrCode = qrCode;
-      await customer.save();
+      const customer = await Customer.create({
+        ...args.input,
+        customerCode,
+        fullName,
+        qrCode: customerCode, // Store only the code string
+        status: args.input.status || 'active',
+      });
       return customer;
     },
 
@@ -485,21 +480,10 @@ export const resolvers = {
       requireAdmin(ctx);
       const customer = await Customer.findById(args.customerId);
       if (!customer) throw new GraphQLError('Customer not found');
-      const qrCode = await generateQRCodeData(customer.customerCode);
-      customer.qrCode = qrCode;
+      // QR code value = customerCode (permanent, never changes)
+      customer.qrCode = customer.customerCode;
       await customer.save();
-      return { success: true, message: 'QR code generated', qrCode };
-    },
-
-    regenerateQRCode: async (_: any, args: { customerId: string }, ctx: GqlContext) => {
-      await connectDB();
-      requireAdmin(ctx);
-      const customer = await Customer.findById(args.customerId);
-      if (!customer) throw new GraphQLError('Customer not found');
-      const qrCode = await generateQRCodeData(customer.customerCode);
-      customer.qrCode = qrCode;
-      await customer.save();
-      return { success: true, message: 'QR code regenerated', qrCode };
+      return { success: true, message: 'QR code assigned', qrCode: customer.qrCode };
     },
 
     // ATTENDANCE
@@ -534,46 +518,20 @@ export const resolvers = {
       const count = Math.min(args.count, 500); // Max 500 per batch
       const batchId = `BATCH-${Date.now()}`;
 
-      // Generate random 8-character alphanumeric codes
-      const generateRandomCode = (): string => {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0,O,1,I to avoid confusion
-        let code = '';
-        for (let i = 0; i < 8; i++) {
-          code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return code;
-      };
+      // Generate unique codes using the utility (no image generation)
+      const { generateBatchCodes } = await import('@/utils/qrcode');
+      const codes = await generateBatchCodes(count);
 
-      // Ensure uniqueness against existing codes
-      const existingCodes = new Set<string>();
-      const existingPool = await QRPool.find({}).select('code').lean();
-      const existingCustomers = await Customer.find({}).select('customerCode').lean();
-      existingPool.forEach((p: any) => existingCodes.add(p.code));
-      existingCustomers.forEach((c: any) => existingCodes.add(c.customerCode));
-
-      const items = [];
-      const newCodes = new Set<string>();
-      for (let i = 0; i < count; i++) {
-        let code: string;
-        do {
-          code = generateRandomCode();
-        } while (existingCodes.has(code) || newCodes.has(code));
-        newCodes.add(code);
-
-        const qrImage = await generateQRCodeData(code);
-        items.push({
-          code,
-          qrImage,
-          status: 'available',
-          batchId,
-          generatedAt: new Date(),
-        });
-      }
+      const items = codes.map((code) => ({
+        code,
+        status: 'available',
+        batchId,
+        generatedAt: new Date(),
+      }));
 
       await QRPool.insertMany(items);
-      const saved = await QRPool.find({ batchId }).sort({ generatedAt: 1 });
 
-      return { success: true, message: `Generated ${count} QR codes`, batchId, count, items: saved };
+      return { success: true, message: `Generated ${count} QR codes`, batchId, count, codes };
     },
 
     registerCustomerToQR: async (_: any, args: { input: any }, ctx: GqlContext) => {
@@ -585,7 +543,7 @@ export const resolvers = {
       const qrItem = await QRPool.findOne({ code: code.toUpperCase(), status: 'available' });
       if (!qrItem) throw new GraphQLError('QR code not found or already assigned');
 
-      // Create the customer with this code
+      // Create the customer with this code (store only the code string, no image)
       const fullName = `${firstName} ${lastName}`;
       const customer = await Customer.create({
         customerCode: qrItem.code,
@@ -597,7 +555,7 @@ export const resolvers = {
         address,
         defaultDiscount: defaultDiscount || 0,
         notes,
-        qrCode: qrItem.qrImage,
+        qrCode: qrItem.code, // Store only the code string
         status: 'active',
       });
 

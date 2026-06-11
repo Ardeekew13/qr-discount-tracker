@@ -1,12 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Card, Descriptions, Tag, Table, Typography, Button, Space, Spin, Row, Col, Image, Divider, message } from 'antd';
-import { ArrowLeftOutlined, DownloadOutlined, PrinterOutlined, QrcodeOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useQuery, useMutation } from '@apollo/client';
-import { GET_CUSTOMER, GET_CUSTOMER_ATTENDANCE, REGENERATE_QR_CODE } from '@/graphql/operations';
+import { Card, Descriptions, Tag, Table, Typography, Button, Space, Spin, Row, Col, Divider, message } from 'antd';
+import { ArrowLeftOutlined, DownloadOutlined, PrinterOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { useQuery } from '@apollo/client';
+import { GET_CUSTOMER, GET_CUSTOMER_ATTENDANCE } from '@/graphql/operations';
+import { QRCodeDisplay, downloadQRCode, printQRCodes } from '@/components/QRCodeDisplay';
 import { useRouter, useParams } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -14,36 +14,31 @@ const { Title, Text } = Typography;
 export default function CustomerProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { isAdmin } = useAuth();
   const customerId = params.id as string;
 
-  const { data: customerData, loading: customerLoading, refetch } = useQuery(GET_CUSTOMER, { variables: { id: customerId }, skip: !customerId });
+  const { data: customerData, loading: customerLoading } = useQuery(GET_CUSTOMER, { variables: { id: customerId }, skip: !customerId });
   const { data: attendanceData, loading: attendanceLoading } = useQuery(GET_CUSTOMER_ATTENDANCE, { variables: { customerId, page: 1, pageSize: 50 }, skip: !customerId });
-
-  const [regenerateQR, { loading: regenerating }] = useMutation(REGENERATE_QR_CODE, {
-    onCompleted: () => { message.success('QR code regenerated'); refetch(); },
-    onError: (err: any) => message.error(err.message),
-  });
 
   if (customerLoading) return <div style={{ textAlign: 'center', padding: 100 }}><Spin size="large" /></div>;
   const customer = customerData?.customer;
   if (!customer) return <Card>Customer not found</Card>;
 
-  const handleDownloadQR = () => {
-    if (customer.qrCode) {
-      const link = document.createElement('a');
-      link.href = customer.qrCode;
-      link.download = `${customer.customerCode}-qr.png`;
-      link.click();
+  // QR value: use qrCode if it's a short code string, otherwise fallback to customerCode
+  // (handles legacy Base64 data that hasn't been migrated yet)
+  const qrValue = customer.qrCode && !customer.qrCode.startsWith('data:')
+    ? customer.qrCode
+    : customer.customerCode;
+
+  const handleDownloadQR = async () => {
+    if (qrValue) {
+      await downloadQRCode(qrValue, `${customer.customerCode}-qr.png`);
+      message.success('QR code downloaded');
     }
   };
 
-  const handlePrintQR = () => {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`<html><head><title>QR - ${customer.customerCode}</title></head><body style="text-align:center;padding:40px;font-family:Arial"><h2>${customer.fullName}</h2><p style="font-size:18px;color:#666">${customer.customerCode}</p><img src="${customer.qrCode}" style="width:300px;height:300px" /><p style="margin-top:20px;font-size:14px;color:#999">Scan this QR code for check-in</p></body></html>`);
-      printWindow.document.close();
-      printWindow.print();
+  const handlePrintQR = async () => {
+    if (qrValue) {
+      await printQRCodes([{ code: qrValue, label: `${customer.fullName} — ${customer.customerCode}` }]);
     }
   };
 
@@ -79,19 +74,11 @@ export default function CustomerProfilePage() {
         </Col>
         <Col xs={24} lg={8}>
           <Card title={<span><QrcodeOutlined /> QR Code</span>}>
-            <div style={{ textAlign: 'center' }}>
-              {customer.qrCode ? (
-                <Image src={customer.qrCode} alt="QR Code" width={200} preview={false} style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 8 }} />
-              ) : (
-                <div style={{ padding: 40, color: '#999' }}>No QR code generated</div>
-              )}
-              <div style={{ marginTop: 8 }}><Text strong>{customer.customerCode}</Text></div>
-            </div>
+            <QRCodeDisplay value={qrValue} size={200} label={customer.customerCode} />
             <Divider />
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Button icon={<DownloadOutlined />} block onClick={handleDownloadQR} disabled={!customer.qrCode}>Download QR</Button>
-              <Button icon={<PrinterOutlined />} block onClick={handlePrintQR} disabled={!customer.qrCode}>Print QR Card</Button>
-              {isAdmin && <Button icon={<ReloadOutlined />} block onClick={() => regenerateQR({ variables: { customerId: customer._id } })} loading={regenerating}>Regenerate QR</Button>}
+              <Button icon={<DownloadOutlined />} block onClick={handleDownloadQR} disabled={!qrValue}>Download QR</Button>
+              <Button icon={<PrinterOutlined />} block onClick={handlePrintQR} disabled={!qrValue}>Print QR Card</Button>
             </Space>
           </Card>
         </Col>

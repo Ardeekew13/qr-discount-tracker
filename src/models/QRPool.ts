@@ -3,7 +3,6 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IQRPool extends Document {
   _id: mongoose.Types.ObjectId;
   code: string;
-  qrImage: string;
   status: 'available' | 'assigned';
   customerId?: mongoose.Types.ObjectId;
   batchId: string;
@@ -22,10 +21,6 @@ const QRPoolSchema = new Schema<IQRPool>(
       trim: true,
       uppercase: true,
     },
-    qrImage: {
-      type: String,
-      required: true,
-    },
     status: {
       type: String,
       enum: ['available', 'assigned'],
@@ -38,6 +33,7 @@ const QRPoolSchema = new Schema<IQRPool>(
     batchId: {
       type: String,
       required: true,
+      index: true,
     },
     generatedAt: {
       type: Date,
@@ -50,9 +46,10 @@ const QRPoolSchema = new Schema<IQRPool>(
   { timestamps: true }
 );
 
-QRPoolSchema.index({ status: 1 });
-QRPoolSchema.index({ batchId: 1 });
-QRPoolSchema.index({ customerId: 1 });
+// Optimized indexes for 10,000+ customers and fast lookups
+QRPoolSchema.index({ status: 1, generatedAt: -1 });
+QRPoolSchema.index({ customerId: 1 }, { sparse: true });
+QRPoolSchema.index({ code: 1, status: 1 });
 
 export const QRPool =
   mongoose.models.QRPool || mongoose.model<IQRPool>('QRPool', QRPoolSchema);

@@ -20,14 +20,15 @@ export default function LoginPage() {
       if (result.success) {
         message.success('Login successful!');
         router.push('/dashboard');
+        // Keep loading state active during navigation
+        return;
       } else {
         message.error(result.message);
       }
     } catch {
       message.error('Login failed');
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (
