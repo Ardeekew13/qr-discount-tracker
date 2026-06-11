@@ -136,16 +136,6 @@ export const GENERATE_QR_CODE = gql`
   }
 `;
 
-export const REGENERATE_QR_CODE = gql`
-  mutation RegenerateQRCode($customerId: ID!) {
-    regenerateQRCode(customerId: $customerId) {
-      success
-      message
-      qrCode
-    }
-  }
-`;
-
 // ==================== ATTENDANCE ====================
 export const GET_ATTENDANCE_LOGS = gql`
   query GetAttendanceLogs($filter: AttendanceFilterInput, $page: Int, $pageSize: Int) {
@@ -325,11 +315,12 @@ export const GET_QR_POOL = gql`
 `;
 
 export const GET_QR_POOL_IMAGES = gql`
-  query GetQRPoolImages($ids: [ID!]!) {
-    qrPoolImages(ids: $ids) {
-      _id
-      code
-      qrImage
+  query GetQRPoolCodes($ids: [ID!]!) {
+    qrPool(page: 1, pageSize: 200) {
+      items {
+        _id
+        code
+      }
     }
   }
 `;
@@ -342,7 +333,6 @@ export const QR_LOOKUP = gql`
       qrPool {
         _id
         code
-        qrImage
         status
       }
       customer {
@@ -369,12 +359,7 @@ export const BATCH_GENERATE_QR = gql`
       message
       batchId
       count
-      items {
-        _id
-        code
-        qrImage
-        status
-      }
+      codes
     }
   }
 `;

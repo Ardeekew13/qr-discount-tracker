@@ -59,9 +59,9 @@ const AttendanceLogSchema = new Schema<IAttendanceLog>(
 );
 
 AttendanceLogSchema.index({ customerId: 1, scannedAt: -1 });
-AttendanceLogSchema.index({ customerCode: 1 });
 AttendanceLogSchema.index({ scannedAt: -1 });
-AttendanceLogSchema.index({ scannedBy: 1 });
+AttendanceLogSchema.index({ customerCode: 1, scannedAt: -1 });
+AttendanceLogSchema.index({ scannedBy: 1, scannedAt: -1 });
 
 export const AttendanceLog =
   mongoose.models.AttendanceLog || mongoose.model<IAttendanceLog>('AttendanceLog', AttendanceLogSchema);

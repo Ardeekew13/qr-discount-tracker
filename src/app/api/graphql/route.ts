@@ -8,6 +8,7 @@ import { getSession } from '@/lib/session';
 const server = new ApolloServer<GqlContext>({
   typeDefs,
   resolvers,
+  introspection: process.env.NODE_ENV !== 'production', // Disable schema introspection in production
 });
 
 const handler = startServerAndCreateNextHandler<NextRequest, GqlContext>(server, {

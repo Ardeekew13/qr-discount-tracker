@@ -138,7 +138,6 @@ export const typeDefs = gql`
   type QRPoolItem {
     _id: ID!
     code: String!
-    qrImage: String!
     status: QRPoolStatus!
     customerId: ID
     customer: Customer
@@ -159,7 +158,7 @@ export const typeDefs = gql`
     message: String!
     batchId: String!
     count: Int!
-    items: [QRPoolItem!]!
+    codes: [String!]!
   }
 
   type QRLookupResult {
@@ -258,7 +257,6 @@ export const typeDefs = gql`
     dashboardSummary: DashboardSummary!
     customerReports: [CustomerReport!]!
     qrPool(status: QRPoolStatus, batchId: String, search: String, page: Int, pageSize: Int): QRPoolListResult!
-    qrPoolImages(ids: [ID!]!): [QRPoolItem!]!
     qrLookup(code: String!): QRLookupResult!
   }
 
@@ -272,7 +270,6 @@ export const typeDefs = gql`
     updateCustomer(id: ID!, input: UpdateCustomerInput!): Customer!
     deleteCustomer(id: ID!): MutationResponse!
     generateQRCode(customerId: ID!): QRCodeResponse!
-    regenerateQRCode(customerId: ID!): QRCodeResponse!
     recordAttendance(input: RecordAttendanceInput!): AttendanceLog!
     batchGenerateQR(count: Int!): BatchGenerateResult!
     registerCustomerToQR(input: RegisterCustomerToQRInput!): Customer!

@@ -18,6 +18,7 @@ async function seed() {
   await db.collection('users').deleteMany({});
   await db.collection('customers').deleteMany({});
   await db.collection('attendancelogs').deleteMany({});
+  await db.collection('qrpools').deleteMany({});
   console.log('🗑️  Cleared existing data');
 
   // Create admin
@@ -48,10 +49,7 @@ async function seed() {
   });
   console.log('✅ Staff created (staff / staff123)');
 
-  // Import QR utility
-  const QRCode = await import('qrcode');
-
-  // Sample customers
+  // Sample customers (no Base64 images stored - only the code string)
   const customers = [
     { firstName: 'Juan', lastName: 'Dela Cruz', mobile: '09171234567', email: 'juan@email.com', defaultDiscount: 10 },
     { firstName: 'Maria', lastName: 'Santos', mobile: '09181234567', email: 'maria@email.com', defaultDiscount: 15 },
@@ -63,7 +61,6 @@ async function seed() {
   for (let i = 0; i < customers.length; i++) {
     const c = customers[i];
     const customerCode = `CUST-${(i + 1).toString().padStart(6, '0')}`;
-    const qrCode = await QRCode.default.toDataURL(customerCode, { width: 400, margin: 2, errorCorrectionLevel: 'H' });
 
     await db.collection('customers').insertOne({
       customerCode,
@@ -73,7 +70,7 @@ async function seed() {
       mobile: c.mobile,
       email: c.email,
       defaultDiscount: c.defaultDiscount,
-      qrCode,
+      qrCode: customerCode, // Store only the code string, NOT Base64 image
       status: 'active',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -81,7 +78,37 @@ async function seed() {
     console.log(`✅ Customer: ${c.firstName} ${c.lastName} (${customerCode})`);
   }
 
+  // Generate sample QR pool codes (no images stored)
+  const batchId = `BATCH-SEED-${Date.now()}`;
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const generateCode = (): string => {
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  const poolCodes = new Set<string>();
+  while (poolCodes.size < 10) {
+    poolCodes.add(generateCode());
+  }
+
+  const poolItems = Array.from(poolCodes).map((code) => ({
+    code,
+    status: 'available',
+    batchId,
+    generatedAt: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }));
+
+  await db.collection('qrpools').insertMany(poolItems);
+  console.log(`✅ Generated ${poolItems.length} QR pool codes (no images — generated dynamically in frontend)`);
+
   console.log('\n🎉 Seed completed!');
+  console.log('📝 Note: QR images are now generated dynamically in the frontend.');
+  console.log('   No Base64 data is stored in MongoDB.');
   await mongoose.disconnect();
   process.exit(0);
 }

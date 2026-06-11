@@ -11,7 +11,7 @@ export interface SessionData {
 }
 
 export const sessionOptions: SessionOptions = {
-  password: process.env.SESSION_SECRET || 'complex_password_at_least_32_characters_long',
+  password: process.env.SESSION_SECRET!,
   cookieName: 'qr-discount-session',
   cookieOptions: {
     secure: process.env.NODE_ENV === 'production',

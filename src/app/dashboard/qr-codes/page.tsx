@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Card, Button, InputNumber, Table, Tag, Typography, message, Row, Col, Space, Select, Image, Modal, Input, Spin, Popconfirm } from 'antd';
-import { DownloadOutlined, PlusOutlined, QrcodeOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons';
-import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
-import { GET_QR_POOL, GET_QR_POOL_IMAGES, BATCH_GENERATE_QR, DELETE_QR_CODE } from '@/graphql/operations';
+import { Card, Button, InputNumber, Table, Tag, Typography, message, Row, Col, Space, Select, Modal, Input, Popconfirm } from 'antd';
+import { DownloadOutlined, PlusOutlined, QrcodeOutlined, PrinterOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useQuery, useMutation } from '@apollo/client';
+import { GET_QR_POOL, BATCH_GENERATE_QR, DELETE_QR_CODE } from '@/graphql/operations';
+import { QRCodeDisplay, downloadQRCode, downloadMultipleQRCodes, printQRCodes } from '@/components/QRCodeDisplay';
 import { useAuth } from '@/lib/auth-context';
 import dayjs from 'dayjs';
 
@@ -18,8 +19,8 @@ export default function QRCodesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
-  const [printModalVisible, setPrintModalVisible] = useState(false);
-  const [printImages, setPrintImages] = useState<any[]>([]);
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [previewCodes, setPreviewCodes] = useState<string[]>([]);
   const { isAdmin } = useAuth();
 
   const { data, loading, refetch } = useQuery(GET_QR_POOL, {
@@ -27,21 +28,12 @@ export default function QRCodesPage() {
     fetchPolicy: 'cache-and-network',
   });
 
-  const [fetchImages, { loading: imagesLoading }] = useLazyQuery(GET_QR_POOL_IMAGES, {
-    fetchPolicy: 'network-only',
-    onCompleted: (result) => {
-      setPrintImages(result.qrPoolImages || []);
-      setPrintModalVisible(true);
-    },
-    onError: (err: any) => message.error('Failed to load images: ' + err.message),
-  });
-
   const [batchGenerate, { loading: generating }] = useMutation(BATCH_GENERATE_QR, {
     onCompleted: (result) => {
       message.success(`Generated ${result.batchGenerateQR.count} QR codes!`);
-      // Load images for the newly generated batch for printing
-      const ids = result.batchGenerateQR.items.map((i: any) => i._id);
-      fetchImages({ variables: { ids } });
+      // Show preview of newly generated codes
+      setPreviewCodes(result.batchGenerateQR.codes || []);
+      setPreviewModalVisible(true);
       refetch();
     },
     onError: (err: any) => message.error(err.message),
@@ -65,55 +57,33 @@ export default function QRCodesPage() {
     setPage(1);
   };
 
-  const handleSavePage = () => {
+  const handleDownloadPage = async () => {
     const items = data?.qrPool?.items;
     if (!items?.length) return;
-    const ids = items.map((i: any) => i._id);
-    fetchImages({ variables: { ids } });
+    const codes = items.map((i: any) => i.code);
+    await downloadMultipleQRCodes(codes);
+    message.success(`${codes.length} QR codes downloaded!`);
   };
 
-  const handleSaveSingle = (id: string) => {
-    fetchImages({ variables: { ids: [id] } });
+  const handlePrintPage = async () => {
+    const items = data?.qrPool?.items;
+    if (!items?.length) return;
+    const printItems = items.map((i: any) => ({ code: i.code, label: i.customer?.fullName }));
+    await printQRCodes(printItems);
   };
 
-  const doDownload = (images: any[]) => {
-    images.forEach((item: any) => {
-      const img = new window.Image();
-      img.onload = () => {
-        const padding = 20;
-        const textHeight = 40;
-        const canvasWidth = img.width + padding * 2;
-        const canvasHeight = img.height + padding * 2 + textHeight;
+  const handleDownloadSingle = async (code: string) => {
+    await downloadQRCode(code);
+    message.success('QR code downloaded');
+  };
 
-        const canvas = document.createElement('canvas');
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-        const ctx = canvas.getContext('2d')!;
+  const handleDownloadPreview = async () => {
+    await downloadMultipleQRCodes(previewCodes);
+    message.success(`${previewCodes.length} QR codes downloaded!`);
+  };
 
-        // White background
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-        // Draw QR image
-        ctx.drawImage(img, padding, padding);
-
-        // Draw code text below
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 24px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(item.code, canvasWidth / 2, img.height + padding + textHeight - 10);
-
-        // Download
-        const link = document.createElement('a');
-        link.href = canvas.toDataURL('image/png');
-        link.download = `${item.code}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      };
-      img.src = item.qrImage;
-    });
-    if (images.length > 1) message.success(`${images.length} QR codes saved!`);
+  const handlePrintPreview = async () => {
+    await printQRCodes(previewCodes.map((code) => ({ code })));
   };
 
   const columns: any[] = [
@@ -155,7 +125,7 @@ export default function QRCodesPage() {
       width: 140,
       render: (_: any, record: any) => (
         <Space size="small">
-          <Button type="link" size="small" icon={<DownloadOutlined />} onClick={() => handleSaveSingle(record._id)}>Save</Button>
+          <Button type="link" size="small" icon={<DownloadOutlined />} onClick={() => handleDownloadSingle(record.code)}>Save</Button>
           {isAdmin && (
             <Popconfirm
               title="Delete QR Code"
@@ -192,7 +162,7 @@ export default function QRCodesPage() {
             </Col>
           </Row>
           <Text type="secondary" style={{ marginTop: 12, display: 'block', fontSize: 12 }}>
-            Pre-generate QR codes and save as images. Register customers later when they present their QR card.
+            Pre-generate QR codes (stored as code strings only — images generated on demand). Register customers later when they present their QR card.
           </Text>
         </Card>
       )}
@@ -217,9 +187,14 @@ export default function QRCodesPage() {
               <Option value="assigned">Assigned</Option>
             </Select>
           </Col>
-          <Col xs={12} sm={7} md={4}>
-            <Button icon={<DownloadOutlined />} onClick={handleSavePage} loading={imagesLoading} disabled={!data?.qrPool?.items?.length} block>
-              Save All
+          <Col xs={6} sm={4} md={3}>
+            <Button icon={<DownloadOutlined />} onClick={handleDownloadPage} disabled={!data?.qrPool?.items?.length} block>
+              Save
+            </Button>
+          </Col>
+          <Col xs={6} sm={3} md={3}>
+            <Button icon={<PrinterOutlined />} onClick={handlePrintPage} disabled={!data?.qrPool?.items?.length} block>
+              Print
             </Button>
           </Col>
         </Row>
@@ -241,37 +216,34 @@ export default function QRCodesPage() {
         />
       </Card>
 
-      {/* Print Modal */}
+      {/* Preview Modal - shows dynamically generated QR images */}
       <Modal
-        title={`Save ${printImages.length} QR Code${printImages.length > 1 ? 's' : ''}`}
-        open={printModalVisible}
-        onCancel={() => setPrintModalVisible(false)}
+        title={`Generated ${previewCodes.length} QR Code${previewCodes.length > 1 ? 's' : ''}`}
+        open={previewModalVisible}
+        onCancel={() => setPreviewModalVisible(false)}
         width={700}
         footer={[
-          <Button key="close" onClick={() => setPrintModalVisible(false)}>Close</Button>,
-          <Button key="save" type="primary" icon={<DownloadOutlined />} onClick={() => doDownload(printImages)}>
-            Save as Picture{printImages.length > 1 ? 's' : ''}
+          <Button key="close" onClick={() => setPreviewModalVisible(false)}>Close</Button>,
+          <Button key="print" icon={<PrinterOutlined />} onClick={handlePrintPreview}>Print</Button>,
+          <Button key="save" type="primary" icon={<DownloadOutlined />} onClick={handleDownloadPreview}>
+            Download All
           </Button>,
         ]}
       >
-        {imagesLoading ? (
-          <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /><p>Loading QR images...</p></div>
-        ) : (
-          <div style={{ maxHeight: 400, overflow: 'auto' }}>
-            <Row gutter={[16, 16]}>
-              {printImages.map((item: any) => (
-                <Col xs={12} sm={8} md={6} key={item._id}>
-                  <Card size="small" style={{ textAlign: 'center' }} hoverable>
-                    <Image src={item.qrImage} width={80} preview={false} />
-                    <div style={{ marginTop: 4 }}>
-                      <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{item.code}</Text>
-                    </div>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-          </div>
-        )}
+        <div style={{ maxHeight: 400, overflow: 'auto' }}>
+          <Row gutter={[16, 16]}>
+            {previewCodes.map((code: string) => (
+              <Col xs={12} sm={8} md={6} key={code}>
+                <Card size="small" style={{ textAlign: 'center' }} hoverable>
+                  <QRCodeDisplay value={code} size={80} />
+                  <div style={{ marginTop: 4 }}>
+                    <Text style={{ fontSize: 11, fontFamily: 'monospace' }}>{code}</Text>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </div>
       </Modal>
     </div>
   );

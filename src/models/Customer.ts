@@ -11,7 +11,7 @@ export interface ICustomer extends Document {
   address?: string;
   defaultDiscount: number;
   notes?: string;
-  qrCode?: string;
+  qrCode?: string; // Stores only the QR code string value (no Base64 image)
   photo?: string;
   status: 'active' | 'inactive';
   createdAt: Date;
@@ -66,7 +66,7 @@ const CustomerSchema = new Schema<ICustomer>(
       trim: true,
     },
     qrCode: {
-      type: String,
+      type: String, // Stores the QR code string, NOT a Base64 image
     },
     photo: {
       type: String,
@@ -80,10 +80,10 @@ const CustomerSchema = new Schema<ICustomer>(
   { timestamps: true }
 );
 
+// Optimized indexes for 10,000+ customers
 CustomerSchema.index({ fullName: 'text', firstName: 'text', lastName: 'text' });
-CustomerSchema.index({ status: 1 });
-CustomerSchema.index({ mobile: 1 });
-CustomerSchema.index({ email: 1 });
+CustomerSchema.index({ status: 1, createdAt: -1 });
+CustomerSchema.index({ qrCode: 1 }, { sparse: true });
 
 CustomerSchema.pre('save', function (next) {
   if (this.firstName && this.lastName) {
