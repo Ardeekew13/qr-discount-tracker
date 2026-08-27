@@ -17,6 +17,7 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [searchText, setSearchText] = useState('');
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
+  const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [form] = Form.useForm();
   const router = useRouter();
   const { isAdmin } = useAuth();
@@ -76,7 +77,7 @@ export default function CustomersPage() {
           ] : []),
         ];
         const onClick = (e: any) => {
-          if (e.key === 'view') router.push(`/dashboard/customers/${record._id}`);
+          if (e.key === 'view') { setNavigatingId(record._id); router.push(`/dashboard/customers/${record._id}`); }
           else if (e.key === 'edit') handleEdit(record);
           else if (e.key === 'delete') {
             Modal.confirm({
@@ -89,8 +90,8 @@ export default function CustomersPage() {
           }
         };
         return (
-          <Dropdown menu={{ items, onClick }} trigger={['click']} placement="bottomRight">
-            <Button type="text" icon={<MoreOutlined style={{ fontSize: 18 }} />} />
+          <Dropdown menu={{ items, onClick }} trigger={['click']} placement="bottomRight" disabled={navigatingId === record._id}>
+            <Button type="text" loading={navigatingId === record._id} icon={navigatingId === record._id ? undefined : <MoreOutlined style={{ fontSize: 18 }} />} />
           </Dropdown>
         );
       },

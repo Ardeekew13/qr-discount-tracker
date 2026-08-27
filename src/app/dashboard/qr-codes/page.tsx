@@ -88,6 +88,12 @@ export default function QRCodesPage() {
 
   const columns: any[] = [
     {
+      title: 'QR',
+      key: 'qrImage',
+      width: 70,
+      render: (_: any, record: any) => <QRCodeDisplay value={record.code} size={48} />,
+    },
+    {
       title: 'Code',
       dataIndex: 'code',
       key: 'code',
@@ -212,7 +218,7 @@ export default function QRCodesPage() {
             showSizeChanger: false,
           }}
           size="middle"
-          scroll={{ x: 700 }}
+          scroll={{ x: 770 }}
         />
       </Card>
 
