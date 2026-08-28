@@ -84,10 +84,17 @@ export default function ScanPage() {
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
+          // iOS Safari doesn't honor the focusMode constraint below, so a
+          // high-res request there just locks the camera into a focus
+          // distance tuned for on-screen QR codes (arm's length), not a
+          // small printed card held close. Asking for a lower ideal
+          // resolution here gives iOS's auto-focus more room to hunt/settle
+          // at close range; Android (which does honor focusMode) still
+          // focuses instantly at this resolution.
           videoConstraints: {
             facingMode: 'environment',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
             advanced: [{ focusMode: 'continuous' } as unknown as MediaTrackConstraintSet],
           },
         },
@@ -206,7 +213,12 @@ export default function ScanPage() {
                 {!scanning ? (
                   <Button type="primary" icon={<CameraOutlined />} onClick={startScanner} size="large" block>Start Scanner</Button>
                 ) : (
-                  <Button danger onClick={stopScanner} size="large" block>Stop Scanner</Button>
+                  <>
+                    <Button danger onClick={stopScanner} size="large" block>Stop Scanner</Button>
+                    <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                      Scanning a printed card on iPhone? Hold it back a bit first, then move it slowly closer so the camera can focus.
+                    </Text>
+                  </>
                 )}
               </div>
             </Card>
