@@ -65,7 +65,10 @@ export default function ScanPage() {
     setScanning(true);
     handleReset();
     const { Html5Qrcode } = await import('html5-qrcode');
-    const scanner = new Html5Qrcode('qr-reader');
+    // iOS Safari exposes a native BarcodeDetector that html5-qrcode prefers by
+    // default, but it's unreliable there (camera opens, nothing ever decodes).
+    // Force the zxing-based decoder instead, which works consistently on iOS.
+    const scanner = new Html5Qrcode('qr-reader', { useBarCodeDetectorIfSupported: false, verbose: false });
     scannerRef.current = scanner;
     try {
       await scanner.start(
