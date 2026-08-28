@@ -77,7 +77,20 @@ export default function ScanPage() {
         // post-start applyConstraints() call, which can decouple what's shown
         // on screen from what's actually captured into the canvas for
         // decoding. Letting the video use its native aspect ratio avoids that.
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        //
+        // videoConstraints requests continuous autofocus and a higher-res
+        // stream: printed QR cards held close to an iPhone's default rear
+        // lens otherwise come out too soft for the decoder to read.
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          videoConstraints: {
+            facingMode: 'environment',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            advanced: [{ focusMode: 'continuous' } as unknown as MediaTrackConstraintSet],
+          },
+        },
         (decodedText: string) => { handleScanResult(decodedText); stopScanner(); },
         () => {}
       );
