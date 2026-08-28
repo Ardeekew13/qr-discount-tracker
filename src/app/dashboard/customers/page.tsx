@@ -37,7 +37,7 @@ export default function CustomersPage() {
   });
 
   const [deleteCustomer] = useMutation(DELETE_CUSTOMER, {
-    onCompleted: () => { message.success('Customer deleted'); refetch(); },
+    onCompleted: (result) => { message.success(result.deleteCustomer.message); refetch(); },
     onError: (err: any) => message.error(err.message),
   });
 
@@ -73,7 +73,7 @@ export default function CustomersPage() {
           ...(isAdmin ? [
             { key: 'edit', icon: <EditOutlined />, label: 'Edit' },
             { type: 'divider' },
-            { key: 'delete', icon: <DeleteOutlined />, label: 'Delete', danger: true },
+            { key: 'delete', icon: <DeleteOutlined />, label: 'Deactivate', danger: true },
           ] : []),
         ];
         const onClick = (e: any) => {
@@ -81,9 +81,9 @@ export default function CustomersPage() {
           else if (e.key === 'edit') handleEdit(record);
           else if (e.key === 'delete') {
             Modal.confirm({
-              title: 'Delete Customer',
-              content: `Are you sure you want to delete ${record.fullName}?`,
-              okText: 'Delete',
+              title: 'Deactivate Customer',
+              content: `This marks ${record.fullName} as inactive - nothing is deleted. Their history and QR code stay intact, and you can set their status back to Active anytime from the Edit form.`,
+              okText: 'Deactivate',
               okButtonProps: { danger: true },
               onOk: () => deleteCustomer({ variables: { id: record._id } }),
             });

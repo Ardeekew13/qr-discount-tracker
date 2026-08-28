@@ -155,17 +155,28 @@ export default function QRCodesPage() {
         <Space size="small">
           <Button type="link" size="small" icon={<DownloadOutlined />} onClick={() => handleDownloadSingle(record.code)}>Save</Button>
           {isAdmin && (
-            <Popconfirm
-              title="Deactivate QR Code"
-              description={record.status === 'assigned'
-                ? 'This deactivates the code and marks its customer inactive - nothing is deleted. Re-add the same code later to restore both.'
-                : 'This deactivates the code - nothing is deleted. Re-add the same code later to restore it.'}
-              onConfirm={() => deleteQRCode({ variables: { id: record._id } })}
-              okText="Deactivate"
-              okButtonProps={{ danger: true }}
-            >
-              <Button type="link" size="small" danger icon={<DeleteOutlined />}>Deactivate</Button>
-            </Popconfirm>
+            record.status === 'assigned' ? (
+              <Button
+                type="link"
+                size="small"
+                danger
+                disabled
+                icon={<DeleteOutlined />}
+                title="Assigned QR codes can't be deleted directly - deactivate the customer instead, from the Customers page."
+              >
+                Deactivate
+              </Button>
+            ) : (
+              <Popconfirm
+                title="Deactivate QR Code"
+                description="This deactivates the code - nothing is deleted. Re-add the same code later to restore it."
+                onConfirm={() => deleteQRCode({ variables: { id: record._id } })}
+                okText="Deactivate"
+                okButtonProps={{ danger: true }}
+              >
+                <Button type="link" size="small" danger icon={<DeleteOutlined />}>Deactivate</Button>
+              </Popconfirm>
+            )
           )}
         </Space>
       ),

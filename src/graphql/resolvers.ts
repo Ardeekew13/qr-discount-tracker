@@ -527,11 +527,13 @@ export const resolvers = {
     deleteCustomer: async (_: any, args: { id: string }, ctx: GqlContext) => {
       await connectDB();
       requireAdmin(ctx);
-      // Release or delete any QR pool entry assigned to this customer
-      await QRPool.deleteMany({ customerId: args.id });
-      await Customer.findByIdAndDelete(args.id);
-      await AttendanceLog.deleteMany({ customerId: args.id });
-      return { success: true, message: 'Customer and associated QR codes deleted successfully' };
+      // Soft delete only: mark inactive, keep the customer record, their
+      // attendance history, and their QR pool assignment untouched. Nothing
+      // is destroyed - re-editing the customer's status back to "active"
+      // (from the Edit form) fully restores them.
+      const customer = await Customer.findByIdAndUpdate(args.id, { status: 'inactive' }, { new: true });
+      if (!customer) throw new GraphQLError('Customer not found');
+      return { success: true, message: 'Customer deactivated. Set their status back to Active to restore them.' };
     },
 
     generateQRCode: async (_: any, args: { customerId: string }, ctx: GqlContext) => {
@@ -642,15 +644,19 @@ export const resolvers = {
       const qrItem = await QRPool.findById(args.id);
       if (!qrItem) throw new GraphQLError('QR code not found');
 
+      // A QR code that's currently assigned to a customer can't be deleted
+      // directly - deactivate the customer instead (from the Customers
+      // page), which is the correct way to revoke access without losing
+      // the code<->customer link or the customer's history.
+      if (qrItem.status === 'assigned') {
+        throw new GraphQLError(
+          'This QR code is assigned to a customer. Deactivate the customer instead (Customers page) rather than deleting the code.'
+        );
+      }
+
       // Soft delete only - a printed physical card must stay recoverable.
-      // Nothing is ever hard-deleted here: not the pool entry, not the
-      // customer, and never the attendance history.
       qrItem.isActive = false;
       await qrItem.save();
-
-      if (qrItem.status === 'assigned' && qrItem.customerId) {
-        await Customer.findByIdAndUpdate(qrItem.customerId, { status: 'inactive' });
-      }
 
       return {
         success: true,

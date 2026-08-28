@@ -74,7 +74,7 @@ export default function CustomerProfilePage() {
         </Col>
         <Col xs={24} lg={8}>
           <Card title={<span><QrcodeOutlined /> QR Code</span>}>
-            <QRCodeDisplay value={qrValue} size={200} label={customer.customerCode} />
+            <QRCodeDisplay value={qrValue} size={200} label={qrValue} />
             <Divider />
             <Space direction="vertical" style={{ width: '100%' }}>
               <Button icon={<DownloadOutlined />} block onClick={handleDownloadQR} disabled={!qrValue}>Download QR</Button>
