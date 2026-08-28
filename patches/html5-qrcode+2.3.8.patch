@@ -1,0 +1,58 @@
+diff --git a/node_modules/html5-qrcode/cjs/zxing-html5-qrcode-decoder.js b/node_modules/html5-qrcode/cjs/zxing-html5-qrcode-decoder.js
+index 1bb0e37..485f1da 100644
+--- a/node_modules/html5-qrcode/cjs/zxing-html5-qrcode-decoder.js
++++ b/node_modules/html5-qrcode/cjs/zxing-html5-qrcode-decoder.js
+@@ -66,7 +66,23 @@ var ZXingHtml5QrcodeDecoder = (function () {
+         var zxingDecoder = new ZXing.MultiFormatReader(this.verbose, this.hints);
+         var luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+         var binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
+-        var result = zxingDecoder.decode(binaryBitmap);
++        var result;
++        try {
++            result = zxingDecoder.decode(binaryBitmap);
++        }
++        catch (firstError) {
++            // Printed/laminated cards are sometimes produced as inverted
++            // (light modules on a dark background) QR codes, which a plain
++            // decode pass can't read. Retry once against an inverted copy of
++            // the same frame before giving up on it.
++            try {
++                var invertedBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource.invert()));
++                result = zxingDecoder.decode(invertedBitmap);
++            }
++            catch (secondError) {
++                throw firstError;
++            }
++        }
+         return {
+             text: result.text,
+             format: core_1.QrcodeResultFormat.create(this.toHtml5QrcodeSupportedFormats(result.format)),
+diff --git a/node_modules/html5-qrcode/esm/zxing-html5-qrcode-decoder.js b/node_modules/html5-qrcode/esm/zxing-html5-qrcode-decoder.js
+index a117c82..ab0b5ab 100644
+--- a/node_modules/html5-qrcode/esm/zxing-html5-qrcode-decoder.js
++++ b/node_modules/html5-qrcode/esm/zxing-html5-qrcode-decoder.js
+@@ -63,7 +63,23 @@ var ZXingHtml5QrcodeDecoder = (function () {
+         var zxingDecoder = new ZXing.MultiFormatReader(this.verbose, this.hints);
+         var luminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+         var binaryBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource));
+-        var result = zxingDecoder.decode(binaryBitmap);
++        var result;
++        try {
++            result = zxingDecoder.decode(binaryBitmap);
++        }
++        catch (firstError) {
++            // Printed/laminated cards are sometimes produced as inverted
++            // (light modules on a dark background) QR codes, which a plain
++            // decode pass can't read. Retry once against an inverted copy of
++            // the same frame before giving up on it.
++            try {
++                var invertedBitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminanceSource.invert()));
++                result = zxingDecoder.decode(invertedBitmap);
++            }
++            catch (secondError) {
++                throw firstError;
++            }
++        }
+         return {
+             text: result.text,
+             format: QrcodeResultFormat.create(this.toHtml5QrcodeSupportedFormats(result.format)),
