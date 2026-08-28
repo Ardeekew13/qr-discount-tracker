@@ -73,7 +73,11 @@ export default function ScanPage() {
     try {
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1 },
+        // No aspectRatio: on iOS Safari it's applied to the camera track via a
+        // post-start applyConstraints() call, which can decouple what's shown
+        // on screen from what's actually captured into the canvas for
+        // decoding. Letting the video use its native aspect ratio avoids that.
+        { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText: string) => { handleScanResult(decodedText); stopScanner(); },
         () => {}
       );
