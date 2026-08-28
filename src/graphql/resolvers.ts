@@ -316,7 +316,7 @@ export const resolvers = {
       const pageSize = Math.min(args.pageSize || 20, 100);
       const skip = (page - 1) * pageSize;
 
-      const query: any = {};
+      const query: any = { isActive: true };
       if (args.status) query.status = args.status;
       if (args.batchId) query.batchId = args.batchId;
       if (args.search) query.code = { $regex: args.search.toUpperCase(), $options: 'i' };
@@ -349,8 +349,9 @@ export const resolvers = {
       requireAuth(ctx);
       const code = args.code.toUpperCase();
 
-      // Check if it's in the QR pool
-      const qrItem = await QRPool.findOne({ code });
+      // Check if it's in the QR pool (soft-deleted codes are excluded -
+      // they behave as if they don't exist until manually re-added).
+      const qrItem = await QRPool.findOne({ code, isActive: true });
       if (qrItem) {
         if (qrItem.status === 'assigned' && qrItem.customerId) {
           const customer = await Customer.findById(qrItem.customerId);
@@ -535,7 +536,16 @@ export const resolvers = {
       requireAdmin(ctx);
       const customer = await Customer.findById(args.customerId);
       if (!customer) throw new GraphQLError('Customer not found');
-      // QR code value = customerCode (permanent, never changes)
+      // A customer's QR code, once assigned, is never replaced - the
+      // physical card may already be printed with it. Generating again is a
+      // no-op that just confirms the existing code rather than reissuing one.
+      if (customer.qrCode) {
+        return {
+          success: true,
+          message: 'Customer already has a QR code assigned - it was not changed.',
+          qrCode: customer.qrCode,
+        };
+      }
       customer.qrCode = customer.customerCode;
       await customer.save();
       return { success: true, message: 'QR code assigned', qrCode: customer.qrCode };
@@ -629,14 +639,65 @@ export const resolvers = {
       const qrItem = await QRPool.findById(args.id);
       if (!qrItem) throw new GraphQLError('QR code not found');
 
-      // If assigned, also delete the associated customer and their attendance logs
+      // Soft delete only - a printed physical card must stay recoverable.
+      // Nothing is ever hard-deleted here: not the pool entry, not the
+      // customer, and never the attendance history.
+      qrItem.isActive = false;
+      await qrItem.save();
+
       if (qrItem.status === 'assigned' && qrItem.customerId) {
-        await AttendanceLog.deleteMany({ customerId: qrItem.customerId });
-        await Customer.findByIdAndDelete(qrItem.customerId);
+        await Customer.findByIdAndUpdate(qrItem.customerId, { status: 'inactive' });
       }
 
-      await QRPool.findByIdAndDelete(args.id);
-      return { success: true, message: 'QR code deleted successfully' };
+      return {
+        success: true,
+        message: 'QR code deactivated. Re-add the same code later to restore it.',
+      };
+    },
+
+    addQRCode: async (_: any, args: { code: string }, ctx: GqlContext) => {
+      await connectDB();
+      requireAdmin(ctx);
+      const code = args.code.trim().toUpperCase();
+      if (!code) throw new GraphQLError('Code is required');
+
+      // A customer code (assigned outside the pool, e.g. legacy or manually
+      // created) can't be reused as a pool code.
+      const existingCustomer = await Customer.findOne({ customerCode: code });
+      if (existingCustomer) {
+        throw new GraphQLError('This code is already in use by a customer.');
+      }
+
+      const existing = await QRPool.findOne({ code });
+      if (existing) {
+        if (existing.isActive) {
+          throw new GraphQLError('This QR code already exists in the pool.');
+        }
+        // Re-adding a previously deactivated code restores it rather than
+        // creating a duplicate - this is the recovery path for a code that
+        // was deleted by mistake but is already printed on a physical card.
+        existing.isActive = true;
+        if (existing.status === 'assigned') {
+          // The prior customer record (if it still exists) was only
+          // deactivated, never deleted - restore it too.
+          if (existing.customerId) {
+            await Customer.findByIdAndUpdate(existing.customerId, { status: 'active' });
+          }
+        } else {
+          existing.status = 'available';
+        }
+        await existing.save();
+        return { success: true, message: 'QR code restored', qrCode: existing.code };
+      }
+
+      await QRPool.create({
+        code,
+        status: 'available',
+        batchId: 'MANUAL',
+        generatedAt: new Date(),
+        isActive: true,
+      });
+      return { success: true, message: 'QR code added', qrCode: code };
     },
   },
 

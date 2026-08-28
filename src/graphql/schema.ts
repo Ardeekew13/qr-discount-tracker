@@ -141,6 +141,7 @@ export const typeDefs = gql`
     status: QRPoolStatus!
     customerId: ID
     customer: Customer
+    isActive: Boolean!
     batchId: String!
     generatedAt: DateTime!
     assignedAt: DateTime
@@ -273,6 +274,7 @@ export const typeDefs = gql`
     generateQRCode(customerId: ID!): QRCodeResponse!
     recordAttendance(input: RecordAttendanceInput!): AttendanceLog!
     batchGenerateQR(count: Int!): BatchGenerateResult!
+    addQRCode(code: String!): QRCodeResponse!
     registerCustomerToQR(input: RegisterCustomerToQRInput!): Customer!
     deleteQRCode(id: ID!): MutationResponse!
   }

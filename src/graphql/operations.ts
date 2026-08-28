@@ -301,6 +301,16 @@ export const GET_CUSTOMER_REPORTS = gql`
 `;
 
 // ==================== QR POOL ====================
+export const ADD_QR_CODE = gql`
+  mutation AddQRCode($code: String!) {
+    addQRCode(code: $code) {
+      success
+      message
+      qrCode
+    }
+  }
+`;
+
 export const GET_QR_POOL = gql`
   query GetQRPool($status: QRPoolStatus, $batchId: String, $search: String, $page: Int, $pageSize: Int) {
     qrPool(status: $status, batchId: $batchId, search: $search, page: $page, pageSize: $pageSize) {

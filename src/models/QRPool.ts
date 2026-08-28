@@ -5,6 +5,7 @@ export interface IQRPool extends Document {
   code: string;
   status: 'available' | 'assigned';
   customerId?: mongoose.Types.ObjectId;
+  isActive: boolean;
   batchId: string;
   generatedAt: Date;
   assignedAt?: Date;
@@ -30,6 +31,13 @@ const QRPoolSchema = new Schema<IQRPool>(
       type: Schema.Types.ObjectId,
       ref: 'Customer',
     },
+    // Soft-delete flag. "Deleting" a QR code from the admin UI never hard-
+    // removes it - a printed physical card must stay a valid, restorable
+    // record. isActive:false just hides it from normal lists/lookups.
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
     batchId: {
       type: String,
       required: true,
@@ -48,6 +56,7 @@ const QRPoolSchema = new Schema<IQRPool>(
 
 // Optimized indexes for 10,000+ customers and fast lookups
 QRPoolSchema.index({ status: 1, generatedAt: -1 });
+QRPoolSchema.index({ isActive: 1 });
 QRPoolSchema.index({ customerId: 1 }, { sparse: true });
 QRPoolSchema.index({ code: 1, status: 1 });
 

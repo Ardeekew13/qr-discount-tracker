@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react';
 import { Card, Button, InputNumber, Table, Tag, Typography, message, Row, Col, Space, Select, Modal, Input, Popconfirm } from 'antd';
-import { DownloadOutlined, PlusOutlined, QrcodeOutlined, PrinterOutlined, DeleteOutlined } from '@ant-design/icons';
+import { DownloadOutlined, PlusOutlined, QrcodeOutlined, PrinterOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_QR_POOL, BATCH_GENERATE_QR, DELETE_QR_CODE } from '@/graphql/operations';
+import { GET_QR_POOL, BATCH_GENERATE_QR, DELETE_QR_CODE, ADD_QR_CODE } from '@/graphql/operations';
 import { QRCodeDisplay, downloadQRCode, downloadMultipleQRCodes, printQRCodes } from '@/components/QRCodeDisplay';
 import { useAuth } from '@/lib/auth-context';
 import dayjs from 'dayjs';
@@ -21,6 +21,8 @@ export default function QRCodesPage() {
   const [pageSize] = useState(20);
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewCodes, setPreviewCodes] = useState<string[]>([]);
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [manualCode, setManualCode] = useState('');
   const { isAdmin } = useAuth();
 
   const { data, loading, refetch } = useQuery(GET_QR_POOL, {
@@ -40,7 +42,21 @@ export default function QRCodesPage() {
   });
 
   const [deleteQRCode] = useMutation(DELETE_QR_CODE, {
-    onCompleted: () => { message.success('QR code deleted'); refetch(); },
+    onCompleted: (result) => { message.success(result.deleteQRCode.message); refetch(); },
+    onError: (err: any) => message.error(err.message),
+  });
+
+  const [addQRCode, { loading: adding }] = useMutation(ADD_QR_CODE, {
+    onCompleted: (result) => {
+      if (result.addQRCode.success) {
+        message.success(result.addQRCode.message);
+        setAddModalVisible(false);
+        setManualCode('');
+        refetch();
+      } else {
+        message.error(result.addQRCode.message);
+      }
+    },
     onError: (err: any) => message.error(err.message),
   });
 
@@ -50,6 +66,12 @@ export default function QRCodesPage() {
       return;
     }
     batchGenerate({ variables: { count } });
+  };
+
+  const handleAddCode = () => {
+    const code = manualCode.trim();
+    if (!code) { message.error('Enter a code'); return; }
+    addQRCode({ variables: { code } });
   };
 
   const handleSearch = () => {
@@ -134,13 +156,15 @@ export default function QRCodesPage() {
           <Button type="link" size="small" icon={<DownloadOutlined />} onClick={() => handleDownloadSingle(record.code)}>Save</Button>
           {isAdmin && (
             <Popconfirm
-              title="Delete QR Code"
-              description={record.status === 'assigned' ? 'This will also delete the assigned customer and their attendance logs.' : 'Are you sure?'}
+              title="Deactivate QR Code"
+              description={record.status === 'assigned'
+                ? 'This deactivates the code and marks its customer inactive - nothing is deleted. Re-add the same code later to restore both.'
+                : 'This deactivates the code - nothing is deleted. Re-add the same code later to restore it.'}
               onConfirm={() => deleteQRCode({ variables: { id: record._id } })}
-              okText="Delete"
+              okText="Deactivate"
               okButtonProps={{ danger: true }}
             >
-              <Button type="link" size="small" danger icon={<DeleteOutlined />}>Delete</Button>
+              <Button type="link" size="small" danger icon={<DeleteOutlined />}>Deactivate</Button>
             </Popconfirm>
           )}
         </Space>
@@ -166,9 +190,16 @@ export default function QRCodesPage() {
                 Generate
               </Button>
             </Col>
+            <Col xs={24} sm={8}>
+              <Text style={{ display: 'block', marginBottom: 4 }}>&nbsp;</Text>
+              <Button icon={<EditOutlined />} onClick={() => setAddModalVisible(true)} size="large" block>
+                Add Code Manually
+              </Button>
+            </Col>
           </Row>
           <Text type="secondary" style={{ marginTop: 12, display: 'block', fontSize: 12 }}>
             Pre-generate QR codes (stored as code strings only — images generated on demand). Register customers later when they present their QR card.
+            Already have a code printed that isn't in the system (e.g. it was deactivated by mistake)? Use "Add Code Manually" to add or restore it.
           </Text>
         </Card>
       )}
@@ -250,6 +281,27 @@ export default function QRCodesPage() {
             ))}
           </Row>
         </div>
+      </Modal>
+
+      {/* Manual Add / Restore Modal */}
+      <Modal
+        title="Add QR Code Manually"
+        open={addModalVisible}
+        onCancel={() => { setAddModalVisible(false); setManualCode(''); }}
+        onOk={handleAddCode}
+        okText="Add Code"
+        confirmLoading={adding}
+      >
+        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+          Enter the exact code printed on the card. If this code was previously deactivated, it (and its customer, if it had one) will be restored instead of creating a duplicate.
+        </Text>
+        <Input
+          placeholder="e.g. GACC6CP7"
+          value={manualCode}
+          onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+          onPressEnter={handleAddCode}
+          style={{ fontFamily: 'monospace' }}
+        />
       </Modal>
     </div>
   );
