@@ -316,7 +316,10 @@ export const resolvers = {
       const pageSize = Math.min(args.pageSize || 20, 100);
       const skip = (page - 1) * pageSize;
 
-      const query: any = { isActive: true };
+      // $ne: false (not isActive: true) so QR codes created before the
+      // isActive field existed - which have no such field at all - still
+      // count as active rather than silently disappearing.
+      const query: any = { isActive: { $ne: false } };
       if (args.status) query.status = args.status;
       if (args.batchId) query.batchId = args.batchId;
       if (args.search) query.code = { $regex: args.search.toUpperCase(), $options: 'i' };
@@ -351,7 +354,7 @@ export const resolvers = {
 
       // Check if it's in the QR pool (soft-deleted codes are excluded -
       // they behave as if they don't exist until manually re-added).
-      const qrItem = await QRPool.findOne({ code, isActive: true });
+      const qrItem = await QRPool.findOne({ code, isActive: { $ne: false } });
       if (qrItem) {
         if (qrItem.status === 'assigned' && qrItem.customerId) {
           const customer = await Customer.findById(qrItem.customerId);
