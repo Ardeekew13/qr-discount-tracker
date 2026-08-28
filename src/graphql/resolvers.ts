@@ -673,7 +673,10 @@ export const resolvers = {
 
       const existing = await QRPool.findOne({ code });
       if (existing) {
-        if (existing.isActive) {
+        // Same missing-field caveat as elsewhere: a code created before
+        // isActive existed has no such field (not `false`), and must still
+        // count as active rather than being treated as already-deleted.
+        if (existing.isActive !== false) {
           throw new GraphQLError('This QR code already exists in the pool.');
         }
         // Re-adding a previously deactivated code restores it rather than
