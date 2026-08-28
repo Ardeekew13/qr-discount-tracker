@@ -263,6 +263,7 @@ export const typeDefs = gql`
   type Mutation {
     login(username: String!, password: String!): AuthPayload!
     logout: MutationResponse!
+    changePassword(currentPassword: String!, newPassword: String!): MutationResponse!
     createUser(input: CreateUserInput!): User!
     updateUser(id: ID!, input: UpdateUserInput!): User!
     deleteUser(id: ID!): MutationResponse!

@@ -8,6 +8,8 @@ export interface IUser extends Document {
   fullName: string;
   email?: string;
   status: 'active' | 'inactive';
+  loginAttempts: number;
+  lockUntil?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +46,15 @@ const UserSchema = new Schema<IUser>(
       type: String,
       enum: ['active', 'inactive'],
       default: 'active',
+    },
+    // Login-throttling state. Not exposed via GraphQL (no field on the User
+    // type) - purely server-side bookkeeping for brute-force protection.
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: {
+      type: Date,
     },
   },
   { timestamps: true }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Avatar, Dropdown, Typography, Button, Spin, Drawer } from 'antd';
-import { DashboardOutlined, TeamOutlined, ScanOutlined, BarChartOutlined, UserOutlined, LogoutOutlined, MenuOutlined, QrcodeOutlined, LoadingOutlined, CloseOutlined } from '@ant-design/icons';
+import { DashboardOutlined, TeamOutlined, ScanOutlined, BarChartOutlined, UserOutlined, LogoutOutlined, MenuOutlined, QrcodeOutlined, LoadingOutlined, CloseOutlined, LockOutlined } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 
@@ -54,6 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const userMenuItems = [
     { key: 'profile', icon: <UserOutlined />, label: `${user.fullName} (${user.role})`, disabled: true },
     { type: 'divider' as const },
+    { key: '/dashboard/change-password', icon: <LockOutlined />, label: 'Change Password' },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', danger: true },
   ];
 
@@ -67,6 +68,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleUserMenuClick = async (e: any) => {
     if (e.key === 'logout') { await logout(); router.push('/login'); }
+    else if (e.key === '/dashboard/change-password') { router.push(e.key); }
   };
 
   const selectedKey = menuItems.find((item) => pathname === item.key)?.key || '/dashboard';

@@ -376,8 +376,39 @@ export const resolvers = {
       const user = await User.findOne({ username: args.username.toLowerCase(), status: 'active' });
       if (!user) return { success: false, message: 'Invalid credentials', user: null };
 
+      // Brute-force protection: after MAX_LOGIN_ATTEMPTS consecutive failures,
+      // lock the account out for LOCK_DURATION_MS regardless of whether the
+      // next attempt would have been correct.
+      if (user.lockUntil && user.lockUntil.getTime() > Date.now()) {
+        const minutesLeft = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
+        return {
+          success: false,
+          message: `Too many failed attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`,
+          user: null,
+        };
+      }
+
       const isValid = await bcrypt.compare(args.password, user.passwordHash);
-      if (!isValid) return { success: false, message: 'Invalid credentials', user: null };
+      if (!isValid) {
+        const MAX_LOGIN_ATTEMPTS = 5;
+        const LOCK_DURATION_MS = 15 * 60 * 1000;
+        user.loginAttempts = (user.loginAttempts || 0) + 1;
+        if (user.loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+          user.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
+          user.loginAttempts = 0;
+          await user.save();
+          return { success: false, message: 'Too many failed attempts. Try again in 15 minutes.', user: null };
+        }
+        await user.save();
+        return { success: false, message: 'Invalid credentials', user: null };
+      }
+
+      // Successful login clears any prior lockout state.
+      if (user.loginAttempts || user.lockUntil) {
+        user.loginAttempts = 0;
+        user.lockUntil = undefined;
+        await user.save();
+      }
 
       ctx.session.user = {
         _id: user._id.toString(),
@@ -397,6 +428,30 @@ export const resolvers = {
     logout: async (_: any, __: any, ctx: GqlContext) => {
       ctx.session.destroy();
       return { success: true, message: 'Logged out successfully' };
+    },
+
+    changePassword: async (_: any, args: { currentPassword: string; newPassword: string }, ctx: GqlContext) => {
+      const sessionUser = requireAuth(ctx);
+      await connectDB();
+
+      if (args.newPassword.length < 8) {
+        return { success: false, message: 'New password must be at least 8 characters.' };
+      }
+
+      const user = await User.findById(sessionUser._id);
+      if (!user) {
+        return { success: false, message: 'Account not found.' };
+      }
+
+      const isValid = await bcrypt.compare(args.currentPassword, user.passwordHash);
+      if (!isValid) {
+        return { success: false, message: 'Current password is incorrect.' };
+      }
+
+      user.passwordHash = await bcrypt.hash(args.newPassword, 12);
+      await user.save();
+
+      return { success: true, message: 'Password updated successfully.' };
     },
 
     // USERS
